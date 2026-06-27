@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Guess Master — 2 Player Number Guessing Game</title>
+<title>Guess Master — Online 2 Player Number Guessing Game</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
   :root{
     --bg1:#0f0c29; --bg2:#302b63; --bg3:#24243e;
@@ -111,6 +113,23 @@
 
   .range-note{font-size:.75rem; opacity:.55; margin-top:-10px; margin-bottom:14px;}
 
+  .room-code{
+    font-size:2.6rem; font-weight:800; letter-spacing:6px; margin:14px 0;
+    background:rgba(255,255,255,0.08); border-radius:16px; padding:14px;
+    color:var(--accent);
+  }
+
+  .spinner{
+    width:34px; height:34px; border:3px solid rgba(255,255,255,0.15);
+    border-top-color:var(--accent); border-radius:50%;
+    margin:10px auto 18px; animation:spin 1s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .toggle-row{display:flex; gap:10px; margin-bottom:18px;}
+  .toggle-row button{margin-top:0;}
+  .toggle-row button.inactive{background:rgba(255,255,255,0.08); box-shadow:none;}
+
   @keyframes shake{
     20%,60%{transform:translateX(-2px);} 40%,80%{transform:translateX(2px);}
   }
@@ -124,6 +143,8 @@
     animation:fall linear forwards; pointer-events:none;
   }
   @keyframes fall{ to{ transform:translateY(110vh) rotate(360deg); opacity:.3; } }
+
+  .error-msg{color:var(--bad); font-size:.85rem; margin:-8px 0 14px; min-height:1.1em;}
 </style>
 </head>
 <body>
@@ -133,20 +154,44 @@
   <div class="card" id="screen-welcome">
     <div class="icon">🎯</div>
     <h1>Guess Master</h1>
-    <p class="subtitle">A 2-player number guessing duel. Fewest attempts wins!</p>
-    <label for="p1name">Player 1 name</label>
-    <input type="text" id="p1name" placeholder="Player 1" maxlength="14">
-    <label for="p2name">Player 2 name</label>
-    <input type="text" id="p2name" placeholder="Player 2" maxlength="14">
-    <label for="rangeMax">Number range (1 to...)</label>
-    <input type="number" id="rangeMax" value="100" min="10" max="100000">
-    <button onclick="startSetSecret(1)">Start Game</button>
+    <p class="subtitle">Online 2-player number guessing duel. Fewest attempts wins!</p>
+    <div class="toggle-row">
+      <button onclick="showCreate()" id="tab-create">Create Room</button>
+      <button class="inactive" onclick="showJoin()" id="tab-join">Join Room</button>
+    </div>
+
+    <div id="create-form">
+      <label for="createName">Your name</label>
+      <input type="text" id="createName" placeholder="Your name" maxlength="14">
+      <label for="rangeMax">Number range (1 to...)</label>
+      <input type="number" id="rangeMax" value="100" min="10" max="100000">
+      <button onclick="createRoom()">Create Room</button>
+    </div>
+
+    <div id="join-form" class="hidden">
+      <label for="joinName">Your name</label>
+      <input type="text" id="joinName" placeholder="Your name" maxlength="14">
+      <label for="joinCode">Room code</label>
+      <input type="text" id="joinCode" placeholder="e.g. 4821" maxlength="4">
+      <button onclick="joinRoom()">Join Room</button>
+    </div>
+    <p class="error-msg" id="welcome-error"></p>
+  </div>
+
+  <!-- SCREEN: Waiting for player 2 -->
+  <div class="card hidden" id="screen-waiting-p2">
+    <div class="icon">⏳</div>
+    <h1>Waiting for player 2</h1>
+    <p class="subtitle">Share this code with your friend</p>
+    <div class="room-code" id="waiting-code"></div>
+    <div class="spinner"></div>
+    <p class="subtitle">They open the same link and tap "Join Room"</p>
   </div>
 
   <!-- SCREEN: Set secret number -->
   <div class="card hidden" id="screen-setsecret">
     <div class="icon">🤫</div>
-    <div class="turn-banner" id="setsecret-banner"></div>
+    <div class="turn-banner" id="setsecret-banner">Your turn to set the secret</div>
     <p class="subtitle" id="setsecret-instruction"></p>
     <label for="secretInput">Secret number</label>
     <input type="number" id="secretInput" placeholder="?">
@@ -154,23 +199,31 @@
     <button onclick="confirmSecret()">Lock it in 🔒</button>
   </div>
 
-  <!-- SCREEN: Handoff -->
-  <div class="card hidden" id="screen-handoff">
-    <div class="icon">🔄</div>
-    <h1 id="handoff-title">Pass the device</h1>
-    <p class="subtitle" id="handoff-sub"></p>
-    <button onclick="proceedFromHandoff()" id="handoff-btn">I'm Ready</button>
+  <!-- SCREEN: Waiting while other player sets secret -->
+  <div class="card hidden" id="screen-waiting-secret">
+    <div class="icon">🤔</div>
+    <h1 id="waitingsecret-title"></h1>
+    <p class="subtitle">Sit tight, the game will start automatically.</p>
+    <div class="spinner"></div>
   </div>
 
   <!-- SCREEN: Guessing -->
   <div class="card hidden" id="screen-guess">
-    <div class="turn-banner" id="guess-banner"></div>
+    <div class="turn-banner">Your turn to guess</div>
     <p class="range-note" id="guess-range"></p>
     <div class="attempts">Attempts<b id="attemptCount">0</b></div>
     <input type="number" id="guessInput" placeholder="Enter your guess" autocomplete="off">
     <button onclick="submitGuess()">Guess</button>
     <div class="hint" id="hintArea"></div>
     <div class="history" id="historyArea"></div>
+  </div>
+
+  <!-- SCREEN: Spectating opponent's guesses -->
+  <div class="card hidden" id="screen-spectate">
+    <div class="turn-banner" id="spectate-banner"></div>
+    <div class="attempts">Attempts so far<b id="spectateAttemptCount">0</b></div>
+    <div class="history" id="spectateHistoryArea"></div>
+    <p class="subtitle" style="margin-top:14px;">Watching live — no peeking needed, you'll be notified the moment they get it!</p>
   </div>
 
   <!-- SCREEN: Round result -->
@@ -188,171 +241,301 @@
     <div class="score-row"><span class="name" id="final-p1name"></span><span class="val" id="final-p1score"></span></div>
     <div class="score-row"><span class="name" id="final-p2name"></span><span class="val" id="final-p2score"></span></div>
     <div class="winner-badge" id="final-winner"></div>
-    <button onclick="resetGame()">Play Again 🔁</button>
+    <button onclick="newGame()">New Game 🔁</button>
   </div>
 
 </div>
 
 <script>
-let state = {};
+const firebaseConfig = {
+  apiKey: "AIzaSyCBLbaabLW8GBxKMIP6Ulnecb_hFNv5V5A",
+  authDomain: "number-guess-game-c22a4.firebaseapp.com",
+  databaseURL: "https://number-guess-game-c22a4-default-rtdb.firebaseio.com",
+  projectId: "number-guess-game-c22a4",
+  storageBucket: "number-guess-game-c22a4.firebasestorage.app",
+  messagingSenderId: "47366451212",
+  appId: "1:47366451212:web:1397af5eeccca8a5d3be29"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let myCode = null;
+let mySlot = null;   // 1 or 2
+let roomRef = null;
+let lastData = null;
+let lastPhase = null;
 
 function show(id){
   document.querySelectorAll('.card').forEach(c => c.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
 }
 
-function startSetSecret(round){
-  const p1 = document.getElementById('p1name').value.trim() || 'Player 1';
-  const p2 = document.getElementById('p2name').value.trim() || 'Player 2';
+function setError(msg){
+  document.getElementById('welcome-error').textContent = msg || '';
+}
+
+function showCreate(){
+  document.getElementById('create-form').classList.remove('hidden');
+  document.getElementById('join-form').classList.add('hidden');
+  document.getElementById('tab-create').classList.remove('inactive');
+  document.getElementById('tab-join').classList.add('inactive');
+  setError('');
+}
+function showJoin(){
+  document.getElementById('create-form').classList.add('hidden');
+  document.getElementById('join-form').classList.remove('hidden');
+  document.getElementById('tab-create').classList.add('inactive');
+  document.getElementById('tab-join').classList.remove('inactive');
+  setError('');
+}
+
+function generateCode(){
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+function createRoom(){
+  const name = document.getElementById('createName').value.trim() || 'Player 1';
   let max = parseInt(document.getElementById('rangeMax').value, 10);
   if (isNaN(max) || max < 10) max = 100;
 
-  state = {
-    names: [p1, p2],
+  myCode = generateCode();
+  mySlot = 1;
+  roomRef = db.ref('rooms/' + myCode);
+  roomRef.set({
     max: max,
-    round: 1,           // round 1: P1 sets, P2 guesses. round 2: P2 sets, P1 guesses.
+    names: { 1: name, 2: null },
+    round: 1,
+    setterSlot: 1,
+    guesserSlot: 2,
     secret: null,
-    setterIdx: 0,
-    guesserIdx: 1,
     attempts: 0,
     history: [],
-    scores: [null, null]
-  };
-  goToSetSecret();
+    scores: { 1: null, 2: null },
+    phase: 'waiting'
+  }).then(() => {
+    document.getElementById('waiting-code').textContent = myCode;
+    show('screen-waiting-p2');
+    listenRoom();
+  });
 }
 
-function goToSetSecret(){
-  const setterName = state.names[state.setterIdx];
-  document.getElementById('setsecret-banner').textContent = `${setterName}'s turn to set the secret`;
-  document.getElementById('setsecret-instruction').textContent =
-    `${setterName}, pick a secret number. Don't let the other player see it!`;
-  document.getElementById('setsecret-range').textContent = `Choose a number between 1 and ${state.max}`;
-  document.getElementById('secretInput').value = '';
-  document.getElementById('secretInput').max = state.max;
-  document.getElementById('secretInput').min = 1;
-  show('screen-setsecret');
+function joinRoom(){
+  const name = document.getElementById('joinName').value.trim() || 'Player 2';
+  const code = document.getElementById('joinCode').value.trim();
+  if (!/^\d{4}$/.test(code)){
+    setError('Enter the 4-digit room code your friend shared.');
+    return;
+  }
+  const ref = db.ref('rooms/' + code);
+  ref.once('value').then(snap => {
+    const data = snap.val();
+    if (!data){
+      setError('No room found with that code.');
+      return;
+    }
+    if (data.names && data.names['2']){
+      setError('That room is already full.');
+      return;
+    }
+    myCode = code;
+    mySlot = 2;
+    roomRef = ref;
+    roomRef.update({ 'names/2': name, phase: 'setting' }).then(() => {
+      listenRoom();
+    });
+  });
+}
+
+function listenRoom(){
+  roomRef.on('value', snap => {
+    const data = snap.val();
+    if (!data) return;
+    lastData = data;
+    renderRoom(data);
+  });
+}
+
+function renderRoom(data){
+  const myName = data.names[mySlot];
+  const otherSlot = mySlot === 1 ? 2 : 1;
+  const otherName = data.names[otherSlot] || 'your friend';
+  const isNewPhase = data.phase !== lastPhase;
+  lastPhase = data.phase;
+
+  if (data.phase === 'waiting'){
+    if (mySlot === 1){
+      document.getElementById('waiting-code').textContent = myCode;
+      show('screen-waiting-p2');
+    }
+    return;
+  }
+
+  if (data.phase === 'setting'){
+    if (mySlot === data.setterSlot){
+      document.getElementById('setsecret-banner').textContent = `${myName}, it's your turn to set the secret`;
+      document.getElementById('setsecret-instruction').textContent =
+        `Pick a secret number between 1 and ${data.max}. ${otherName} can't see it.`;
+      document.getElementById('setsecret-range').textContent = `Range: 1 - ${data.max}`;
+      if (isNewPhase) document.getElementById('secretInput').value = '';
+      show('screen-setsecret');
+    } else {
+      document.getElementById('waitingsecret-title').textContent = `${otherName} is choosing a secret number...`;
+      show('screen-waiting-secret');
+    }
+    return;
+  }
+
+  if (data.phase === 'guessing'){
+    const history = data.history || [];
+    if (mySlot === data.guesserSlot){
+      document.getElementById('guess-range').textContent = `Range: 1 - ${data.max}`;
+      document.getElementById('attemptCount').textContent = data.attempts;
+      renderHistory('historyArea', history);
+      if (isNewPhase){
+        document.getElementById('guessInput').value = '';
+        document.getElementById('hintArea').textContent = '';
+        document.getElementById('hintArea').className = 'hint';
+      }
+      show('screen-guess');
+      setTimeout(() => document.getElementById('guessInput').focus(), 50);
+    } else {
+      document.getElementById('spectate-banner').textContent = `${otherName} is guessing your number`;
+      document.getElementById('spectateAttemptCount').textContent = data.attempts;
+      renderHistory('spectateHistoryArea', history);
+      show('screen-spectate');
+    }
+    return;
+  }
+
+  if (data.phase === 'roundresult'){
+    const guesserName = data.names[data.guesserSlot];
+    const attempts = data.scores[data.guesserSlot];
+    document.getElementById('roundresult-title').textContent = `${guesserName} guessed it! 🎉`;
+    document.getElementById('roundresult-sub').textContent =
+      `It took ${guesserName} ${attempts} attempt${attempts === 1 ? '' : 's'} to find the number.`;
+    document.getElementById('roundresult-btn').textContent =
+      data.round === 1 ? `Continue — ${data.names[data.setterSlot === 1 ? 2 : 1]}'s turn to guess next` : 'See Final Results 🏆';
+    if (isNewPhase && mySlot === data.guesserSlot) launchConfetti();
+    show('screen-roundresult');
+    return;
+  }
+
+  if (data.phase === 'final'){
+    document.getElementById('final-p1name').textContent = data.names[1];
+    document.getElementById('final-p2name').textContent = data.names[2];
+    document.getElementById('final-p1score').textContent = data.scores[1] + ' attempts';
+    document.getElementById('final-p2score').textContent = data.scores[2] + ' attempts';
+    const winnerEl = document.getElementById('final-winner');
+    if (data.scores[1] < data.scores[2]){
+      winnerEl.textContent = `🏆 ${data.names[1]} wins with fewer attempts!`;
+    } else if (data.scores[2] < data.scores[1]){
+      winnerEl.textContent = `🏆 ${data.names[2]} wins with fewer attempts!`;
+    } else {
+      winnerEl.textContent = `🤝 It's a tie! Both took ${data.scores[1]} attempts.`;
+    }
+    if (isNewPhase) launchConfetti();
+    show('screen-final');
+    return;
+  }
+}
+
+function renderHistory(containerId, history){
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  for (let i = history.length - 1; i >= 0; i--){
+    const item = history[i];
+    const chip = document.createElement('span');
+    if (item.result === 'correct'){
+      chip.className = 'chip c';
+      chip.textContent = `${item.guess} ✓`;
+    } else if (item.result === 'bigger'){
+      chip.className = 'chip b';
+      chip.textContent = `${item.guess} ↑`;
+    } else {
+      chip.className = 'chip s';
+      chip.textContent = `${item.guess} ↓`;
+    }
+    el.appendChild(chip);
+  }
 }
 
 function confirmSecret(){
+  const data = lastData;
   const val = parseInt(document.getElementById('secretInput').value, 10);
-  if (isNaN(val) || val < 1 || val > state.max){
-    alert(`Please enter a valid number between 1 and ${state.max}`);
+  if (isNaN(val) || val < 1 || val > data.max){
+    alert(`Please enter a valid number between 1 and ${data.max}`);
     return;
   }
-  state.secret = val;
-  state.attempts = 0;
-  state.history = [];
-
-  document.getElementById('handoff-title').textContent = 'Pass the device 🤝';
-  document.getElementById('handoff-sub').textContent =
-    `${state.names[state.guesserIdx]}, get ready to guess the secret number!`;
-  document.getElementById('handoff-btn').textContent = `I'm ${state.names[state.guesserIdx]}, Ready!`;
-  show('screen-handoff');
-}
-
-function proceedFromHandoff(){
-  document.getElementById('guess-banner').textContent = `${state.names[state.guesserIdx]}'s turn to guess`;
-  document.getElementById('guess-range').textContent = `Range: 1 - ${state.max}`;
-  document.getElementById('attemptCount').textContent = state.attempts;
-  document.getElementById('guessInput').value = '';
-  document.getElementById('hintArea').textContent = '';
-  document.getElementById('hintArea').className = 'hint';
-  document.getElementById('historyArea').innerHTML = '';
-  show('screen-guess');
-  setTimeout(() => document.getElementById('guessInput').focus(), 100);
+  roomRef.update({
+    secret: val,
+    attempts: 0,
+    history: [],
+    phase: 'guessing'
+  });
 }
 
 function submitGuess(){
+  const data = lastData;
   const input = document.getElementById('guessInput');
   const val = parseInt(input.value, 10);
-  if (isNaN(val) || val < 1 || val > state.max){
-    alert(`Enter a number between 1 and ${state.max}`);
+  if (isNaN(val) || val < 1 || val > data.max){
+    alert(`Enter a number between 1 and ${data.max}`);
     return;
   }
-  state.attempts++;
-  document.getElementById('attemptCount').textContent = state.attempts;
+  const attempts = (data.attempts || 0) + 1;
+  let result;
+  if (val === data.secret) result = 'correct';
+  else if (val < data.secret) result = 'bigger';
+  else result = 'smaller';
+
+  const history = (data.history || []).concat([{ guess: val, result: result }]);
 
   const hintEl = document.getElementById('hintArea');
   const card = document.getElementById('screen-guess');
-  const chip = document.createElement('span');
 
-  if (val === state.secret){
+  if (result === 'correct'){
     hintEl.textContent = '🎯 Correct!';
     hintEl.className = 'hint correct';
-    chip.className = 'chip c';
-    chip.textContent = `${val} ✓`;
-    document.getElementById('historyArea').prepend(chip);
     card.classList.add('pulse');
-    launchConfetti();
-    setTimeout(() => finishRound(), 900);
-  } else if (val < state.secret){
-    hintEl.textContent = '⬆️ Bigger';
-    hintEl.className = 'hint bigger';
-    chip.className = 'chip b';
-    chip.textContent = `${val} ↑`;
-    document.getElementById('historyArea').prepend(chip);
-    card.classList.add('shake');
-    setTimeout(() => card.classList.remove('shake'), 500);
+    const newScores = Object.assign({}, data.scores);
+    newScores[data.guesserSlot] = attempts;
+    roomRef.update({ attempts, history, scores: newScores, phase: 'roundresult' });
   } else {
-    hintEl.textContent = '⬇️ Smaller';
-    hintEl.className = 'hint smaller';
-    chip.className = 'chip s';
-    chip.textContent = `${val} ↓`;
-    document.getElementById('historyArea').prepend(chip);
+    hintEl.textContent = result === 'bigger' ? '⬆️ Bigger' : '⬇️ Smaller';
+    hintEl.className = result === 'bigger' ? 'hint bigger' : 'hint smaller';
     card.classList.add('shake');
-    setTimeout(() => card.classList.remove('shake'), 500);
+    setTimeout(() => card.classList.remove('shake'), 250);
+    roomRef.update({ attempts, history });
   }
   input.value = '';
   input.focus();
 }
 
-function finishRound(){
-  document.getElementById('screen-guess').classList.remove('pulse');
-  state.scores[state.guesserIdx] = state.attempts;
-
-  document.getElementById('roundresult-title').textContent = `${state.names[state.guesserIdx]} guessed it! 🎉`;
-  document.getElementById('roundresult-sub').textContent =
-    `It took ${state.names[state.guesserIdx]} ${state.attempts} attempt${state.attempts === 1 ? '' : 's'} to find ${state.secret}.`;
-
-  document.getElementById('roundresult-btn').textContent =
-    state.round === 1 ? `Now it's ${state.names[1]}'s turn to set a number` : 'See Final Results 🏆';
-  show('screen-roundresult');
-}
-
 function continueAfterRound(){
-  if (state.round === 1){
-    state.round = 2;
-    state.setterIdx = 1;
-    state.guesserIdx = 0;
-    state.secret = null;
-    state.attempts = 0;
-    state.history = [];
-    goToSetSecret();
+  const data = lastData;
+  if (data.round === 1){
+    roomRef.update({
+      round: 2,
+      setterSlot: data.guesserSlot,
+      guesserSlot: data.setterSlot,
+      secret: null,
+      attempts: 0,
+      history: [],
+      phase: 'setting'
+    });
   } else {
-    showFinal();
+    roomRef.update({ phase: 'final' });
   }
 }
 
-function showFinal(){
-  document.getElementById('final-p1name').textContent = state.names[0];
-  document.getElementById('final-p2name').textContent = state.names[1];
-  document.getElementById('final-p1score').textContent = state.scores[0] + ' attempts';
-  document.getElementById('final-p2score').textContent = state.scores[1] + ' attempts';
-
-  const winnerEl = document.getElementById('final-winner');
-  if (state.scores[0] < state.scores[1]){
-    winnerEl.textContent = `🏆 ${state.names[0]} wins with fewer attempts!`;
-    launchConfetti();
-  } else if (state.scores[1] < state.scores[0]){
-    winnerEl.textContent = `🏆 ${state.names[1]} wins with fewer attempts!`;
-    launchConfetti();
-  } else {
-    winnerEl.textContent = `🤝 It's a tie! Both took ${state.scores[0]} attempts.`;
-  }
-  show('screen-final');
-}
-
-function resetGame(){
+function newGame(){
+  if (roomRef) roomRef.off();
+  myCode = null;
+  mySlot = null;
+  roomRef = null;
+  lastData = null;
+  lastPhase = null;
+  setError('');
   show('screen-welcome');
 }
 
@@ -372,6 +555,7 @@ function launchConfetti(){
 
 document.getElementById('secretInput').addEventListener('keyup', e => { if (e.key === 'Enter') confirmSecret(); });
 document.getElementById('guessInput').addEventListener('keyup', e => { if (e.key === 'Enter') submitGuess(); });
+document.getElementById('joinCode').addEventListener('keyup', e => { if (e.key === 'Enter') joinRoom(); });
 </script>
 </body>
 </html>
