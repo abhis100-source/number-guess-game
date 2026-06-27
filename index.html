@@ -126,6 +126,26 @@
   }
   @keyframes spin{to{transform:rotate(360deg);}}
 
+  .howto-box{
+    background:rgba(255,255,255,0.06); border-radius:14px; padding:14px 16px;
+    text-align:left; margin-bottom:18px;
+  }
+  .howto-title{font-size:.8rem; font-weight:700; opacity:.7; margin:0 0 8px; letter-spacing:.5px;}
+  .howto-step{font-size:.82rem; line-height:1.5; margin:5px 0; opacity:.9;}
+
+  .difficulty-row{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:8px;}
+  .diff-pill{
+    width:auto; padding:10px 4px; border-radius:12px; font-size:.8rem; font-weight:600;
+    background:rgba(255,255,255,0.06); box-shadow:none; margin-top:0; color:var(--text);
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+  }
+  .diff-pill small{font-size:.68rem; font-weight:500; opacity:.7;}
+  .diff-pill.active{
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    box-shadow:0 8px 24px rgba(120,115,245,0.35);
+  }
+  .diff-pill.active small{opacity:.9;}
+
   .toggle-row{display:flex; gap:10px; margin-bottom:18px;}
   .toggle-row button{margin-top:0;}
   .toggle-row button.inactive{background:rgba(255,255,255,0.08); box-shadow:none;}
@@ -145,6 +165,53 @@
   @keyframes fall{ to{ transform:translateY(110vh) rotate(360deg); opacity:.3; } }
 
   .error-msg{color:var(--bad); font-size:.85rem; margin:-8px 0 14px; min-height:1.1em;}
+
+  .chat-widget{position:fixed; bottom:20px; right:20px; z-index:50;}
+  .chat-toggle{
+    width:auto; padding:12px 18px; border-radius:999px; font-size:.9rem;
+    box-shadow:0 8px 24px rgba(120,115,245,0.4); position:relative;
+  }
+  .chat-badge{
+    position:absolute; top:-6px; right:-6px; background:var(--bad); color:#fff;
+    font-size:.7rem; font-weight:800; min-width:20px; height:20px; border-radius:999px;
+    display:flex; align-items:center; justify-content:center; padding:0 4px;
+  }
+  .chat-panel{
+    position:absolute; bottom:62px; right:0; width:300px; max-width:calc(100vw - 40px);
+    background:var(--card); border:1px solid rgba(255,255,255,0.12); border-radius:18px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5); backdrop-filter:blur(10px);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .chat-header{
+    padding:14px 16px; font-weight:700; font-size:.9rem;
+    border-bottom:1px solid rgba(255,255,255,0.1);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .chat-close{cursor:pointer; opacity:.6; font-size:.9rem;}
+  .chat-close:hover{opacity:1;}
+  .chat-messages{
+    flex:1; max-height:260px; overflow-y:auto; padding:12px 14px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .chat-msg{
+    max-width:80%; padding:8px 12px; border-radius:14px; font-size:.85rem; line-height:1.4;
+    word-wrap:break-word;
+  }
+  .chat-msg.me{
+    align-self:flex-end; background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#fff;
+  }
+  .chat-msg.them{
+    align-self:flex-start; background:rgba(255,255,255,0.1);
+  }
+  .chat-input-row{
+    display:flex; gap:8px; padding:12px 14px; border-top:1px solid rgba(255,255,255,0.1);
+  }
+  .chat-input-row input{
+    margin-bottom:0; padding:10px 14px; font-size:.9rem; flex:1;
+  }
+  .chat-send{
+    width:42px; padding:0; border-radius:12px; flex-shrink:0;
+  }
 </style>
 </head>
 <body>
@@ -155,6 +222,13 @@
     <div class="icon">🎯</div>
     <h1>Guess Master</h1>
     <p class="subtitle">Online 2-player number guessing duel. Fewest attempts wins!</p>
+    <div class="howto-box">
+      <p class="howto-title">How to play</p>
+      <p class="howto-step">1. Create a room and share the 4-digit code</p>
+      <p class="howto-step">2. Your friend joins using that code</p>
+      <p class="howto-step">3. Take turns setting a secret number and guessing it with hints</p>
+      <p class="howto-step">4. After both rounds, whoever guessed in fewer attempts wins</p>
+    </div>
     <div class="toggle-row">
       <button onclick="showCreate()" id="tab-create">Create Room</button>
       <button class="inactive" onclick="showJoin()" id="tab-join">Join Room</button>
@@ -163,8 +237,15 @@
     <div id="create-form">
       <label for="createName">Your name</label>
       <input type="text" id="createName" placeholder="Your name" maxlength="14">
-      <label for="rangeMax">Number range (1 to...)</label>
-      <input type="number" id="rangeMax" value="100" min="10" max="100000">
+      <label>Pick a difficulty</label>
+      <div class="difficulty-row">
+        <button type="button" class="diff-pill" data-max="50" onclick="selectDifficulty(this)">Easy<small>1-50</small></button>
+        <button type="button" class="diff-pill active" data-max="100" onclick="selectDifficulty(this)">Medium<small>1-100</small></button>
+        <button type="button" class="diff-pill" data-max="500" onclick="selectDifficulty(this)">Hard<small>1-500</small></button>
+        <button type="button" class="diff-pill" data-max="custom" onclick="selectDifficulty(this)">Custom<small>Set your own</small></button>
+      </div>
+      <p class="range-note" id="difficulty-summary">Secret number will be between 1 and 100</p>
+      <input type="number" id="rangeMax" value="100" min="10" max="100000" class="hidden">
       <button onclick="createRoom()">Create Room</button>
     </div>
 
@@ -244,6 +325,25 @@
     <button onclick="newGame()">New Game 🔁</button>
   </div>
 
+  <!-- CHAT WIDGET -->
+  <div class="chat-widget hidden" id="chat-widget">
+    <button class="chat-toggle" id="chat-toggle" onclick="toggleChat()">
+      💬 Chat
+      <span class="chat-badge hidden" id="chat-badge">0</span>
+    </button>
+    <div class="chat-panel hidden" id="chat-panel">
+      <div class="chat-header">
+        Chat with your friend
+        <span class="chat-close" onclick="toggleChat()">✕</span>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Say something..." maxlength="200">
+        <button class="chat-send" onclick="sendChatMessage()">➤</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -262,10 +362,15 @@ const db = firebase.database();
 let myCode = null;
 let mySlot = null;   // 1 or 2
 let roomRef = null;
+let chatRef = null;
 let lastData = null;
 let lastPhase = null;
+let chatOpen = false;
+let unreadCount = 0;
+let seenMessageKeys = new Set();
 
 function show(id){
+  if (id !== 'screen-welcome') openChatWidget(); else closeChatWidget();
   document.querySelectorAll('.card').forEach(c => c.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
 }
@@ -292,6 +397,25 @@ function showJoin(){
 function generateCode(){
   return String(Math.floor(1000 + Math.random() * 9000));
 }
+
+function selectDifficulty(btn){
+  document.querySelectorAll('.diff-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  const rangeInput = document.getElementById('rangeMax');
+  const summary = document.getElementById('difficulty-summary');
+  if (btn.dataset.max === 'custom'){
+    rangeInput.classList.remove('hidden');
+    rangeInput.focus();
+    summary.textContent = `Secret number will be between 1 and ${rangeInput.value || 100}`;
+  } else {
+    rangeInput.classList.add('hidden');
+    rangeInput.value = btn.dataset.max;
+    summary.textContent = `Secret number will be between 1 and ${btn.dataset.max}`;
+  }
+}
+document.getElementById('rangeMax').addEventListener('input', e => {
+  document.getElementById('difficulty-summary').textContent = `Secret number will be between 1 and ${e.target.value || 100}`;
+});
 
 function createRoom(){
   const name = document.getElementById('createName').value.trim() || 'Player 1';
@@ -352,6 +476,18 @@ function listenRoom(){
     if (!data) return;
     lastData = data;
     renderRoom(data);
+  });
+  chatRef = db.ref('rooms/' + myCode + '/messages');
+  chatRef.limitToLast(50).on('child_added', snap => {
+    const key = snap.key;
+    if (seenMessageKeys.has(key)) return;
+    seenMessageKeys.add(key);
+    const msg = snap.val();
+    appendChatMessage(msg);
+    if (msg.slot !== mySlot && !chatOpen){
+      unreadCount++;
+      updateChatBadge();
+    }
   });
 }
 
@@ -530,13 +666,73 @@ function continueAfterRound(){
 
 function newGame(){
   if (roomRef) roomRef.off();
+  if (chatRef) chatRef.off();
   myCode = null;
   mySlot = null;
   roomRef = null;
+  chatRef = null;
   lastData = null;
   lastPhase = null;
+  chatOpen = false;
+  unreadCount = 0;
+  seenMessageKeys = new Set();
+  document.getElementById('chat-messages').innerHTML = '';
+  document.getElementById('chat-panel').classList.add('hidden');
   setError('');
   show('screen-welcome');
+}
+
+function openChatWidget(){
+  document.getElementById('chat-widget').classList.remove('hidden');
+}
+function closeChatWidget(){
+  document.getElementById('chat-widget').classList.add('hidden');
+  document.getElementById('chat-panel').classList.add('hidden');
+  chatOpen = false;
+}
+
+function toggleChat(){
+  chatOpen = !chatOpen;
+  document.getElementById('chat-panel').classList.toggle('hidden', !chatOpen);
+  if (chatOpen){
+    unreadCount = 0;
+    updateChatBadge();
+    const msgs = document.getElementById('chat-messages');
+    msgs.scrollTop = msgs.scrollHeight;
+    setTimeout(() => document.getElementById('chatInput').focus(), 50);
+  }
+}
+
+function updateChatBadge(){
+  const badge = document.getElementById('chat-badge');
+  if (unreadCount > 0){
+    badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function appendChatMessage(msg){
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + (msg.slot === mySlot ? 'me' : 'them');
+  div.textContent = msg.text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function sendChatMessage(){
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text || !chatRef) return;
+  chatRef.push({
+    slot: mySlot,
+    name: lastData ? lastData.names[mySlot] : '',
+    text: text,
+    ts: Date.now()
+  });
+  input.value = '';
 }
 
 function launchConfetti(){
@@ -556,6 +752,7 @@ function launchConfetti(){
 document.getElementById('secretInput').addEventListener('keyup', e => { if (e.key === 'Enter') confirmSecret(); });
 document.getElementById('guessInput').addEventListener('keyup', e => { if (e.key === 'Enter') submitGuess(); });
 document.getElementById('joinCode').addEventListener('keyup', e => { if (e.key === 'Enter') joinRoom(); });
+document.getElementById('chatInput').addEventListener('keyup', e => { if (e.key === 'Enter') sendChatMessage(); });
 </script>
 </body>
 </html>
