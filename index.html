@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guess Master — 2 Player Number Guessing Game</title>
+<style>
+  :root{
+    --bg1:#0f0c29; --bg2:#302b63; --bg3:#24243e;
+    --accent:#ff6ec4; --accent2:#7873f5; --good:#36d399; --warn:#ffb86b; --bad:#ff5e5e;
+    --card:#1b1735cc; --text:#f4f2ff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:linear-gradient(135deg,var(--bg1),var(--bg2),var(--bg3));
+    background-size:200% 200%;
+    animation:bgmove 12s ease infinite;
+    color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  @keyframes bgmove{0%{background-position:0% 50%;}50%{background-position:100% 50%;}100%{background-position:0% 50%;}}
+
+  .app{ width:100%; max-width:480px; }
+  .card{
+    background:var(--card);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:24px;
+    padding:32px 28px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+    backdrop-filter:blur(10px);
+    text-align:center;
+    animation:popin .35s ease;
+  }
+  @keyframes popin{from{opacity:0; transform:translateY(12px) scale(.97);} to{opacity:1; transform:translateY(0) scale(1);}}
+
+  h1{
+    font-size:1.8rem; margin:0 0 4px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .subtitle{opacity:.7; font-size:.9rem; margin-bottom:24px;}
+
+  .turn-banner{
+    display:inline-block; padding:6px 16px; border-radius:999px;
+    background:rgba(255,255,255,0.08); font-weight:600; font-size:.85rem;
+    margin-bottom:20px; letter-spacing:.5px;
+  }
+
+  label{display:block; font-size:.85rem; opacity:.75; margin-bottom:8px; text-align:left;}
+
+  input[type=number], input[type=text]{
+    width:100%; padding:14px 16px; font-size:1.2rem; border-radius:14px;
+    border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.25);
+    color:var(--text); outline:none; text-align:center; margin-bottom:16px;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  input:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(255,110,196,0.25);}
+
+  button{
+    width:100%; padding:14px 16px; font-size:1.05rem; font-weight:700;
+    border:none; border-radius:14px; cursor:pointer; color:#fff;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    box-shadow:0 8px 24px rgba(120,115,245,0.35);
+    transition:transform .15s, box-shadow .15s; margin-top:4px;
+  }
+  button:hover{transform:translateY(-2px); box-shadow:0 12px 28px rgba(120,115,245,0.45);}
+  button:active{transform:translateY(0);}
+  button.secondary{
+    background:rgba(255,255,255,0.08); box-shadow:none; margin-top:10px;
+  }
+  button.secondary:hover{background:rgba(255,255,255,0.14);}
+
+  .hint{
+    font-size:2rem; font-weight:800; margin:18px 0; min-height:2.4rem;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+  }
+  .hint.bigger{color:var(--warn);}
+  .hint.smaller{color:#9ad1ff;}
+  .hint.correct{color:var(--good);}
+
+  .attempts{
+    font-size:.9rem; opacity:.8; margin-bottom:18px;
+  }
+  .attempts b{font-size:1.3rem; color:var(--accent); display:block;}
+
+  .history{
+    display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:14px 0 6px;
+    max-height:120px; overflow-y:auto;
+  }
+  .chip{
+    padding:6px 12px; border-radius:999px; font-size:.85rem; font-weight:600;
+    background:rgba(255,255,255,0.08);
+  }
+  .chip.b{color:var(--warn);} .chip.s{color:#9ad1ff;} .chip.c{color:var(--good); background:rgba(54,211,153,0.15);}
+
+  .icon{font-size:2.4rem; margin-bottom:6px;}
+
+  .score-row{
+    display:flex; justify-content:space-between; align-items:center;
+    background:rgba(255,255,255,0.06); border-radius:14px; padding:14px 18px; margin-bottom:10px;
+  }
+  .score-row .name{font-weight:700;}
+  .score-row .val{font-size:1.4rem; font-weight:800; color:var(--accent);}
+  .winner-badge{
+    font-size:1.1rem; font-weight:800; margin:14px 0; color:var(--good);
+  }
+
+  .hidden{display:none !important;}
+
+  .range-note{font-size:.75rem; opacity:.55; margin-top:-10px; margin-bottom:14px;}
+
+  @keyframes shake{
+    20%,60%{transform:translateX(-2px);} 40%,80%{transform:translateX(2px);}
+  }
+  .shake{animation:shake .25s;}
+
+  @keyframes pulse{0%{transform:scale(1);}50%{transform:scale(1.08);}100%{transform:scale(1);}}
+  .pulse{animation:pulse .5s;}
+
+  .confetti{
+    position:fixed; top:-10px; width:8px; height:14px; opacity:.9; border-radius:2px;
+    animation:fall linear forwards; pointer-events:none;
+  }
+  @keyframes fall{ to{ transform:translateY(110vh) rotate(360deg); opacity:.3; } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SCREEN: Welcome -->
+  <div class="card" id="screen-welcome">
+    <div class="icon">🎯</div>
+    <h1>Guess Master</h1>
+    <p class="subtitle">A 2-player number guessing duel. Fewest attempts wins!</p>
+    <label for="p1name">Player 1 name</label>
+    <input type="text" id="p1name" placeholder="Player 1" maxlength="14">
+    <label for="p2name">Player 2 name</label>
+    <input type="text" id="p2name" placeholder="Player 2" maxlength="14">
+    <label for="rangeMax">Number range (1 to...)</label>
+    <input type="number" id="rangeMax" value="100" min="10" max="100000">
+    <button onclick="startSetSecret(1)">Start Game</button>
+  </div>
+
+  <!-- SCREEN: Set secret number -->
+  <div class="card hidden" id="screen-setsecret">
+    <div class="icon">🤫</div>
+    <div class="turn-banner" id="setsecret-banner"></div>
+    <p class="subtitle" id="setsecret-instruction"></p>
+    <label for="secretInput">Secret number</label>
+    <input type="number" id="secretInput" placeholder="?">
+    <p class="range-note" id="setsecret-range"></p>
+    <button onclick="confirmSecret()">Lock it in 🔒</button>
+  </div>
+
+  <!-- SCREEN: Handoff -->
+  <div class="card hidden" id="screen-handoff">
+    <div class="icon">🔄</div>
+    <h1 id="handoff-title">Pass the device</h1>
+    <p class="subtitle" id="handoff-sub"></p>
+    <button onclick="proceedFromHandoff()" id="handoff-btn">I'm Ready</button>
+  </div>
+
+  <!-- SCREEN: Guessing -->
+  <div class="card hidden" id="screen-guess">
+    <div class="turn-banner" id="guess-banner"></div>
+    <p class="range-note" id="guess-range"></p>
+    <div class="attempts">Attempts<b id="attemptCount">0</b></div>
+    <input type="number" id="guessInput" placeholder="Enter your guess" autocomplete="off">
+    <button onclick="submitGuess()">Guess</button>
+    <div class="hint" id="hintArea"></div>
+    <div class="history" id="historyArea"></div>
+  </div>
+
+  <!-- SCREEN: Round result -->
+  <div class="card hidden" id="screen-roundresult">
+    <div class="icon">🎉</div>
+    <h1 id="roundresult-title"></h1>
+    <p class="subtitle" id="roundresult-sub"></p>
+    <button onclick="continueAfterRound()" id="roundresult-btn">Continue</button>
+  </div>
+
+  <!-- SCREEN: Final result -->
+  <div class="card hidden" id="screen-final">
+    <div class="icon">🏆</div>
+    <h1>Final Results</h1>
+    <div class="score-row"><span class="name" id="final-p1name"></span><span class="val" id="final-p1score"></span></div>
+    <div class="score-row"><span class="name" id="final-p2name"></span><span class="val" id="final-p2score"></span></div>
+    <div class="winner-badge" id="final-winner"></div>
+    <button onclick="resetGame()">Play Again 🔁</button>
+  </div>
+
+</div>
+
+<script>
+let state = {};
+
+function show(id){
+  document.querySelectorAll('.card').forEach(c => c.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+
+function startSetSecret(round){
+  const p1 = document.getElementById('p1name').value.trim() || 'Player 1';
+  const p2 = document.getElementById('p2name').value.trim() || 'Player 2';
+  let max = parseInt(document.getElementById('rangeMax').value, 10);
+  if (isNaN(max) || max < 10) max = 100;
+
+  state = {
+    names: [p1, p2],
+    max: max,
+    round: 1,           // round 1: P1 sets, P2 guesses. round 2: P2 sets, P1 guesses.
+    secret: null,
+    setterIdx: 0,
+    guesserIdx: 1,
+    attempts: 0,
+    history: [],
+    scores: [null, null]
+  };
+  goToSetSecret();
+}
+
+function goToSetSecret(){
+  const setterName = state.names[state.setterIdx];
+  document.getElementById('setsecret-banner').textContent = `${setterName}'s turn to set the secret`;
+  document.getElementById('setsecret-instruction').textContent =
+    `${setterName}, pick a secret number. Don't let the other player see it!`;
+  document.getElementById('setsecret-range').textContent = `Choose a number between 1 and ${state.max}`;
+  document.getElementById('secretInput').value = '';
+  document.getElementById('secretInput').max = state.max;
+  document.getElementById('secretInput').min = 1;
+  show('screen-setsecret');
+}
+
+function confirmSecret(){
+  const val = parseInt(document.getElementById('secretInput').value, 10);
+  if (isNaN(val) || val < 1 || val > state.max){
+    alert(`Please enter a valid number between 1 and ${state.max}`);
+    return;
+  }
+  state.secret = val;
+  state.attempts = 0;
+  state.history = [];
+
+  document.getElementById('handoff-title').textContent = 'Pass the device 🤝';
+  document.getElementById('handoff-sub').textContent =
+    `${state.names[state.guesserIdx]}, get ready to guess the secret number!`;
+  document.getElementById('handoff-btn').textContent = `I'm ${state.names[state.guesserIdx]}, Ready!`;
+  show('screen-handoff');
+}
+
+function proceedFromHandoff(){
+  document.getElementById('guess-banner').textContent = `${state.names[state.guesserIdx]}'s turn to guess`;
+  document.getElementById('guess-range').textContent = `Range: 1 - ${state.max}`;
+  document.getElementById('attemptCount').textContent = state.attempts;
+  document.getElementById('guessInput').value = '';
+  document.getElementById('hintArea').textContent = '';
+  document.getElementById('hintArea').className = 'hint';
+  document.getElementById('historyArea').innerHTML = '';
+  show('screen-guess');
+  setTimeout(() => document.getElementById('guessInput').focus(), 100);
+}
+
+function submitGuess(){
+  const input = document.getElementById('guessInput');
+  const val = parseInt(input.value, 10);
+  if (isNaN(val) || val < 1 || val > state.max){
+    alert(`Enter a number between 1 and ${state.max}`);
+    return;
+  }
+  state.attempts++;
+  document.getElementById('attemptCount').textContent = state.attempts;
+
+  const hintEl = document.getElementById('hintArea');
+  const card = document.getElementById('screen-guess');
+  const chip = document.createElement('span');
+
+  if (val === state.secret){
+    hintEl.textContent = '🎯 Correct!';
+    hintEl.className = 'hint correct';
+    chip.className = 'chip c';
+    chip.textContent = `${val} ✓`;
+    document.getElementById('historyArea').prepend(chip);
+    card.classList.add('pulse');
+    launchConfetti();
+    setTimeout(() => finishRound(), 900);
+  } else if (val < state.secret){
+    hintEl.textContent = '⬆️ Bigger';
+    hintEl.className = 'hint bigger';
+    chip.className = 'chip b';
+    chip.textContent = `${val} ↑`;
+    document.getElementById('historyArea').prepend(chip);
+    card.classList.add('shake');
+    setTimeout(() => card.classList.remove('shake'), 500);
+  } else {
+    hintEl.textContent = '⬇️ Smaller';
+    hintEl.className = 'hint smaller';
+    chip.className = 'chip s';
+    chip.textContent = `${val} ↓`;
+    document.getElementById('historyArea').prepend(chip);
+    card.classList.add('shake');
+    setTimeout(() => card.classList.remove('shake'), 500);
+  }
+  input.value = '';
+  input.focus();
+}
+
+function finishRound(){
+  document.getElementById('screen-guess').classList.remove('pulse');
+  state.scores[state.guesserIdx] = state.attempts;
+
+  document.getElementById('roundresult-title').textContent = `${state.names[state.guesserIdx]} guessed it! 🎉`;
+  document.getElementById('roundresult-sub').textContent =
+    `It took ${state.names[state.guesserIdx]} ${state.attempts} attempt${state.attempts === 1 ? '' : 's'} to find ${state.secret}.`;
+
+  document.getElementById('roundresult-btn').textContent =
+    state.round === 1 ? `Now it's ${state.names[1]}'s turn to set a number` : 'See Final Results 🏆';
+  show('screen-roundresult');
+}
+
+function continueAfterRound(){
+  if (state.round === 1){
+    state.round = 2;
+    state.setterIdx = 1;
+    state.guesserIdx = 0;
+    state.secret = null;
+    state.attempts = 0;
+    state.history = [];
+    goToSetSecret();
+  } else {
+    showFinal();
+  }
+}
+
+function showFinal(){
+  document.getElementById('final-p1name').textContent = state.names[0];
+  document.getElementById('final-p2name').textContent = state.names[1];
+  document.getElementById('final-p1score').textContent = state.scores[0] + ' attempts';
+  document.getElementById('final-p2score').textContent = state.scores[1] + ' attempts';
+
+  const winnerEl = document.getElementById('final-winner');
+  if (state.scores[0] < state.scores[1]){
+    winnerEl.textContent = `🏆 ${state.names[0]} wins with fewer attempts!`;
+    launchConfetti();
+  } else if (state.scores[1] < state.scores[0]){
+    winnerEl.textContent = `🏆 ${state.names[1]} wins with fewer attempts!`;
+    launchConfetti();
+  } else {
+    winnerEl.textContent = `🤝 It's a tie! Both took ${state.scores[0]} attempts.`;
+  }
+  show('screen-final');
+}
+
+function resetGame(){
+  show('screen-welcome');
+}
+
+function launchConfetti(){
+  const colors = ['#ff6ec4','#7873f5','#36d399','#ffb86b','#9ad1ff'];
+  for (let i = 0; i < 60; i++){
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.animationDuration = (2 + Math.random() * 1.5) + 's';
+    c.style.transform = `rotate(${Math.random()*360}deg)`;
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 3600);
+  }
+}
+
+document.getElementById('secretInput').addEventListener('keyup', e => { if (e.key === 'Enter') confirmSecret(); });
+document.getElementById('guessInput').addEventListener('keyup', e => { if (e.key === 'Enter') submitGuess(); });
+</script>
+</body>
+</html>
