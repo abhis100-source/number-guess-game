@@ -661,6 +661,20 @@ function continueAfterRound(){
     });
   } else {
     roomRef.update({ phase: 'final' });
+    if (mySlot === 1){
+      const winner = data.scores[1] < data.scores[2] ? data.names[1]
+        : data.scores[2] < data.scores[1] ? data.names[2] : 'Tie';
+      db.ref('gameHistory').push({
+        roomCode: myCode,
+        player1: data.names[1],
+        player2: data.names[2],
+        score1: data.scores[1],
+        score2: data.scores[2],
+        winner: winner,
+        max: data.max,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+      });
+    }
   }
 }
 
