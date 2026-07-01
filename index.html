@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Guess Master — Online 2 Player Number Guessing Game</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#7873f5">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Guess Master">
+<link rel="apple-touch-icon" href="icon.svg">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
@@ -1003,6 +1010,10 @@ document.getElementById('secretInput').addEventListener('keyup', e => { if (e.ke
 document.getElementById('guessInput').addEventListener('keyup', e => { if (e.key === 'Enter') submitGuess(); });
 document.getElementById('joinCode').addEventListener('keyup', e => { if (e.key === 'Enter') joinRoom(); });
 document.getElementById('chatInput').addEventListener('keyup', e => { if (e.key === 'Enter') sendChatMessage(); });
+
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+}
 </script>
 </body>
 </html>

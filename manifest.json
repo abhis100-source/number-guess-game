@@ -1,0 +1,18 @@
+{
+  "name": "Guess Master",
+  "short_name": "Guess Master",
+  "description": "Online 2-player number guessing duel. Fewest attempts wins!",
+  "start_url": "/number-guess-game/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0c29",
+  "theme_color": "#7873f5",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
