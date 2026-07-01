@@ -126,12 +126,38 @@
   }
   @keyframes spin{to{transform:rotate(360deg);}}
 
-  .howto-box{
-    background:rgba(255,255,255,0.06); border-radius:14px; padding:14px 16px;
-    text-align:left; margin-bottom:18px;
+  .howto-toggle{
+    width:100%; background:rgba(255,255,255,0.06); box-shadow:none; margin-bottom:12px;
+    margin-top:0; display:flex; justify-content:space-between; align-items:center;
+    padding:11px 16px; border-radius:12px; font-size:.85rem; font-weight:600; color:var(--text);
   }
-  .howto-title{font-size:.8rem; font-weight:700; opacity:.7; margin:0 0 8px; letter-spacing:.5px;}
-  .howto-step{font-size:.82rem; line-height:1.5; margin:5px 0; opacity:.9;}
+  .howto-toggle .arrow{transition:transform .2s; font-style:normal;}
+  .howto-toggle.open .arrow{transform:rotate(180deg);}
+  .howto-box{
+    background:rgba(255,255,255,0.04); border-radius:12px; padding:12px 16px;
+    text-align:left; margin-bottom:14px; margin-top:-4px;
+  }
+  .howto-step{font-size:.82rem; line-height:1.5; margin:4px 0; opacity:.85;}
+
+  .guess-screen-inner{display:flex; flex-direction:column; gap:0;}
+  .guess-top{margin-bottom:8px;}
+  .guess-hint-row{
+    display:flex; align-items:center; justify-content:space-between;
+    background:rgba(255,255,255,0.06); border-radius:12px; padding:10px 14px; margin-bottom:10px;
+  }
+  .guess-hint-row .hint-label{font-size:.78rem; opacity:.6;}
+  .guess-hint-row .hint-val{font-size:1.3rem; font-weight:800;}
+  .guess-hint-row .hint-val.bigger{color:var(--warn);}
+  .guess-hint-row .hint-val.smaller{color:#9ad1ff;}
+  .guess-hint-row .hint-val.correct{color:var(--good);}
+  .guess-hint-row .attempt-val{font-size:1.1rem; font-weight:700; color:var(--accent);}
+  .guess-input-row{display:flex; gap:8px; align-items:stretch;}
+  .guess-input-row input{margin-bottom:0; flex:1; padding:12px 14px; font-size:1.1rem;}
+  .guess-input-row button{width:auto; padding:0 18px; margin-top:0; flex-shrink:0; font-size:.95rem;}
+  .history-compact{
+    display:flex; flex-wrap:wrap; gap:6px; justify-content:center;
+    max-height:80px; overflow-y:auto; margin-top:10px;
+  }
 
   .difficulty-row{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:8px;}
   .diff-pill{
@@ -222,8 +248,10 @@
     <div class="icon">🎯</div>
     <h1>Guess Master</h1>
     <p class="subtitle">Online 2-player number guessing duel. Fewest attempts wins!</p>
-    <div class="howto-box">
-      <p class="howto-title">How to play</p>
+    <button class="howto-toggle" id="howto-toggle" onclick="toggleHowTo()">
+      ❓ How to play <i class="arrow">▾</i>
+    </button>
+    <div class="howto-box hidden" id="howto-box">
       <p class="howto-step">1. Create a room and share the 4-digit code</p>
       <p class="howto-step">2. Your friend joins using that code</p>
       <p class="howto-step">3. Take turns setting a secret number and guessing it with hints</p>
@@ -232,6 +260,7 @@
     <div class="toggle-row">
       <button onclick="showCreate()" id="tab-create">Create Room</button>
       <button class="inactive" onclick="showJoin()" id="tab-join">Join Room</button>
+      <button class="inactive" onclick="showBot()" id="tab-bot">vs Bot 🤖</button>
     </div>
 
     <div id="create-form">
@@ -256,6 +285,20 @@
       <input type="text" id="joinCode" placeholder="e.g. 4821" maxlength="4">
       <button onclick="joinRoom()">Join Room</button>
     </div>
+
+    <div id="bot-form" class="hidden">
+      <label for="botName">Your name</label>
+      <input type="text" id="botName" placeholder="Your name" maxlength="14">
+      <label>Pick a difficulty</label>
+      <div class="difficulty-row">
+        <button type="button" class="diff-pill bot-pill" data-max="50" onclick="selectBotDifficulty(this)">Easy<small>1-50</small></button>
+        <button type="button" class="diff-pill bot-pill active" data-max="100" onclick="selectBotDifficulty(this)">Medium<small>1-100</small></button>
+        <button type="button" class="diff-pill bot-pill" data-max="500" onclick="selectBotDifficulty(this)">Hard<small>1-500</small></button>
+      </div>
+      <p class="range-note" id="bot-difficulty-summary">Secret number will be between 1 and 100</p>
+      <button onclick="startBotGame()">Play vs Bot 🤖</button>
+    </div>
+
     <p class="error-msg" id="welcome-error"></p>
   </div>
 
@@ -290,13 +333,27 @@
 
   <!-- SCREEN: Guessing -->
   <div class="card hidden" id="screen-guess">
-    <div class="turn-banner">Your turn to guess</div>
-    <p class="range-note" id="guess-range"></p>
-    <div class="attempts">Attempts<b id="attemptCount">0</b></div>
-    <input type="number" id="guessInput" placeholder="Enter your guess" autocomplete="off">
-    <button onclick="submitGuess()">Guess</button>
-    <div class="hint" id="hintArea"></div>
-    <div class="history" id="historyArea"></div>
+    <div class="guess-screen-inner">
+      <div class="guess-top">
+        <div class="turn-banner" id="guess-banner">Your turn to guess</div>
+        <p class="range-note" id="guess-range"></p>
+      </div>
+      <div class="guess-hint-row">
+        <div>
+          <div class="hint-label">Last hint</div>
+          <div class="hint-val" id="hintArea">—</div>
+        </div>
+        <div>
+          <div class="hint-label">Attempts</div>
+          <div class="attempt-val" id="attemptCount">0</div>
+        </div>
+      </div>
+      <div class="guess-input-row">
+        <input type="number" id="guessInput" placeholder="Your guess" autocomplete="off">
+        <button onclick="submitGuess()">Go</button>
+      </div>
+      <div class="history-compact" id="historyArea"></div>
+    </div>
   </div>
 
   <!-- SCREEN: Spectating opponent's guesses -->
@@ -360,7 +417,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let myCode = null;
-let mySlot = null;   // 1 or 2
+let mySlot = null;
 let roomRef = null;
 let chatRef = null;
 let lastData = null;
@@ -369,8 +426,20 @@ let chatOpen = false;
 let unreadCount = 0;
 let seenMessageKeys = new Set();
 
+// Bot game state
+let isBotGame = false;
+let botMax = 100;
+let botSecret = null;
+let botPlayerName = '';
+let botAttempts = 0;
+let botHistory = [];
+let botScores = { player: null, bot: null };
+let botRound = 1;  // 1 = bot sets, player guesses; 2 = player sets, bot guesses
+let botPlayerSecret = null;
+let botLow = 1, botHigh = 100;
+
 function show(id){
-  if (id !== 'screen-welcome') openChatWidget(); else closeChatWidget();
+  if (id !== 'screen-welcome' && !isBotGame) openChatWidget(); else closeChatWidget();
   document.querySelectorAll('.card').forEach(c => c.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
 }
@@ -379,23 +448,165 @@ function setError(msg){
   document.getElementById('welcome-error').textContent = msg || '';
 }
 
+function toggleHowTo(){
+  const box = document.getElementById('howto-box');
+  const btn = document.getElementById('howto-toggle');
+  const hidden = box.classList.toggle('hidden');
+  btn.classList.toggle('open', !hidden);
+}
+
 function showCreate(){
   document.getElementById('create-form').classList.remove('hidden');
   document.getElementById('join-form').classList.add('hidden');
+  document.getElementById('bot-form').classList.add('hidden');
   document.getElementById('tab-create').classList.remove('inactive');
   document.getElementById('tab-join').classList.add('inactive');
+  document.getElementById('tab-bot').classList.add('inactive');
   setError('');
 }
 function showJoin(){
   document.getElementById('create-form').classList.add('hidden');
   document.getElementById('join-form').classList.remove('hidden');
+  document.getElementById('bot-form').classList.add('hidden');
   document.getElementById('tab-create').classList.add('inactive');
   document.getElementById('tab-join').classList.remove('inactive');
+  document.getElementById('tab-bot').classList.add('inactive');
   setError('');
+}
+function showBot(){
+  document.getElementById('create-form').classList.add('hidden');
+  document.getElementById('join-form').classList.add('hidden');
+  document.getElementById('bot-form').classList.remove('hidden');
+  document.getElementById('tab-create').classList.add('inactive');
+  document.getElementById('tab-join').classList.add('inactive');
+  document.getElementById('tab-bot').classList.remove('inactive');
+  setError('');
+}
+
+function selectBotDifficulty(btn){
+  document.querySelectorAll('.bot-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('bot-difficulty-summary').textContent = `Secret number will be between 1 and ${btn.dataset.max}`;
+  botMax = parseInt(btn.dataset.max, 10);
 }
 
 function generateCode(){
   return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+function startBotGame(){
+  botPlayerName = document.getElementById('botName').value.trim() || 'You';
+  const activePill = document.querySelector('.bot-pill.active');
+  botMax = activePill ? parseInt(activePill.dataset.max, 10) : 100;
+  isBotGame = true;
+  botRound = 1;
+  botScores = { player: null, bot: null };
+  botSecret = Math.floor(Math.random() * botMax) + 1;
+  botAttempts = 0;
+  botHistory = [];
+  showBotGuessScreen();
+}
+
+function showBotGuessScreen(){
+  document.getElementById('guess-banner').textContent = `${botPlayerName}, guess the bot's secret number`;
+  document.getElementById('guess-range').textContent = `Range: 1 – ${botMax}`;
+  document.getElementById('attemptCount').textContent = 0;
+  document.getElementById('hintArea').textContent = '—';
+  document.getElementById('hintArea').className = 'hint-val';
+  document.getElementById('historyArea').innerHTML = '';
+  document.getElementById('guessInput').value = '';
+  show('screen-guess');
+  setTimeout(() => document.getElementById('guessInput').focus(), 50);
+}
+
+function showBotSetSecretScreen(){
+  document.getElementById('setsecret-banner').textContent = `${botPlayerName}, set a secret number for the bot to guess`;
+  document.getElementById('setsecret-instruction').textContent = `Pick any number between 1 and ${botMax}. The bot will try to guess it!`;
+  document.getElementById('setsecret-range').textContent = `Range: 1 – ${botMax}`;
+  document.getElementById('secretInput').value = '';
+  show('screen-setsecret');
+}
+
+function confirmBotSecret(){
+  const val = parseInt(document.getElementById('secretInput').value, 10);
+  if (isNaN(val) || val < 1 || val > botMax){
+    alert(`Please enter a number between 1 and ${botMax}`);
+    return;
+  }
+  botPlayerSecret = val;
+  botLow = 1;
+  botHigh = botMax;
+  botAttempts = 0;
+  botHistory = [];
+  show('screen-spectate');
+  document.getElementById('spectate-banner').textContent = '🤖 Bot is guessing your number...';
+  document.getElementById('spectateAttemptCount').textContent = 0;
+  document.getElementById('spectateHistoryArea').innerHTML = '';
+  scheduleBotGuess();
+}
+
+function scheduleBotGuess(){
+  setTimeout(doBotGuess, 900);
+}
+
+function doBotGuess(){
+  const guess = Math.floor((botLow + botHigh) / 2);
+  botAttempts++;
+  let result;
+  if (guess === botPlayerSecret){
+    result = 'correct';
+  } else if (guess < botPlayerSecret){
+    result = 'bigger';
+    botLow = guess + 1;
+  } else {
+    result = 'smaller';
+    botHigh = guess - 1;
+  }
+  botHistory.push({ guess, result });
+  document.getElementById('spectateAttemptCount').textContent = botAttempts;
+  renderHistory('spectateHistoryArea', botHistory);
+  if (result === 'correct'){
+    botScores.bot = botAttempts;
+    launchConfetti();
+    setTimeout(() => showBotRoundResult(false), 600);
+  } else {
+    scheduleBotGuess();
+  }
+}
+
+function showBotRoundResult(playerJustGuessed){
+  const titleEl = document.getElementById('roundresult-title');
+  const subEl = document.getElementById('roundresult-sub');
+  const btnEl = document.getElementById('roundresult-btn');
+  if (playerJustGuessed){
+    titleEl.textContent = `${botPlayerName} guessed it! 🎉`;
+    subEl.textContent = `You took ${botScores.player} attempt${botScores.player === 1 ? '' : 's'} to crack the bot's number.`;
+    btnEl.textContent = `Now let the bot guess your number 🤖`;
+    btnEl.onclick = () => { botRound = 2; showBotSetSecretScreen(); };
+  } else {
+    titleEl.textContent = `Bot cracked it in ${botScores.bot} attempts! 🤖`;
+    subEl.textContent = `The secret was ${botPlayerSecret}.`;
+    btnEl.textContent = 'See Final Results 🏆';
+    btnEl.onclick = showBotFinal;
+  }
+  show('screen-roundresult');
+}
+
+function showBotFinal(){
+  document.getElementById('final-p1name').textContent = botPlayerName;
+  document.getElementById('final-p2name').textContent = '🤖 Bot';
+  document.getElementById('final-p1score').textContent = botScores.player + ' attempts';
+  document.getElementById('final-p2score').textContent = botScores.bot + ' attempts';
+  const winnerEl = document.getElementById('final-winner');
+  if (botScores.player < botScores.bot){
+    winnerEl.textContent = `🏆 ${botPlayerName} wins — you beat the bot!`;
+  } else if (botScores.bot < botScores.player){
+    winnerEl.textContent = `🤖 Bot wins this round! Try again?`;
+  } else {
+    winnerEl.textContent = `🤝 It's a tie!`;
+  }
+  launchConfetti();
+  show('screen-final');
 }
 
 function selectDifficulty(btn){
@@ -524,13 +735,16 @@ function renderRoom(data){
   if (data.phase === 'guessing'){
     const history = data.history || [];
     if (mySlot === data.guesserSlot){
-      document.getElementById('guess-range').textContent = `Range: 1 - ${data.max}`;
+      document.getElementById('guess-banner').textContent = 'Your turn to guess';
+      document.getElementById('guess-range').textContent = `Range: 1 – ${data.max}`;
       document.getElementById('attemptCount').textContent = data.attempts;
       renderHistory('historyArea', history);
       if (isNewPhase){
         document.getElementById('guessInput').value = '';
-        document.getElementById('hintArea').textContent = '';
-        document.getElementById('hintArea').className = 'hint';
+        setHint('—', '');
+      } else if (history.length > 0){
+        const last = history[history.length - 1];
+        setHint(last.result === 'bigger' ? '⬆️ Bigger' : '⬇️ Smaller', last.result);
       }
       show('screen-guess');
       setTimeout(() => document.getElementById('guessInput').focus(), 50);
@@ -596,49 +810,73 @@ function renderHistory(containerId, history){
 }
 
 function confirmSecret(){
+  if (isBotGame){ confirmBotSecret(); return; }
   const data = lastData;
   const val = parseInt(document.getElementById('secretInput').value, 10);
   if (isNaN(val) || val < 1 || val > data.max){
     alert(`Please enter a valid number between 1 and ${data.max}`);
     return;
   }
-  roomRef.update({
-    secret: val,
-    attempts: 0,
-    history: [],
-    phase: 'guessing'
-  });
+  roomRef.update({ secret: val, attempts: 0, history: [], phase: 'guessing' });
+}
+
+function setHint(text, type){
+  const el = document.getElementById('hintArea');
+  el.textContent = text;
+  el.className = 'hint-val' + (type ? ' ' + type : '');
 }
 
 function submitGuess(){
-  const data = lastData;
   const input = document.getElementById('guessInput');
   const val = parseInt(input.value, 10);
-  if (isNaN(val) || val < 1 || val > data.max){
-    alert(`Enter a number between 1 and ${data.max}`);
+  const max = isBotGame ? botMax : (lastData ? lastData.max : 100);
+  if (isNaN(val) || val < 1 || val > max){
+    alert(`Enter a number between 1 and ${max}`);
     return;
   }
+
+  if (isBotGame){
+    botAttempts++;
+    document.getElementById('attemptCount').textContent = botAttempts;
+    let result;
+    if (val === botSecret) result = 'correct';
+    else if (val < botSecret) result = 'bigger';
+    else result = 'smaller';
+    botHistory.push({ guess: val, result });
+    renderHistory('historyArea', botHistory);
+    const card = document.getElementById('screen-guess');
+    if (result === 'correct'){
+      setHint('🎯 Correct!', 'correct');
+      card.classList.add('pulse');
+      botScores.player = botAttempts;
+      launchConfetti();
+      setTimeout(() => showBotRoundResult(true), 800);
+    } else {
+      setHint(result === 'bigger' ? '⬆️ Bigger' : '⬇️ Smaller', result);
+      card.classList.add('shake');
+      setTimeout(() => card.classList.remove('shake'), 250);
+    }
+    input.value = '';
+    input.focus();
+    return;
+  }
+
+  const data = lastData;
   const attempts = (data.attempts || 0) + 1;
   let result;
   if (val === data.secret) result = 'correct';
   else if (val < data.secret) result = 'bigger';
   else result = 'smaller';
-
-  const history = (data.history || []).concat([{ guess: val, result: result }]);
-
-  const hintEl = document.getElementById('hintArea');
+  const history = (data.history || []).concat([{ guess: val, result }]);
   const card = document.getElementById('screen-guess');
-
   if (result === 'correct'){
-    hintEl.textContent = '🎯 Correct!';
-    hintEl.className = 'hint correct';
+    setHint('🎯 Correct!', 'correct');
     card.classList.add('pulse');
     const newScores = Object.assign({}, data.scores);
     newScores[data.guesserSlot] = attempts;
     roomRef.update({ attempts, history, scores: newScores, phase: 'roundresult' });
   } else {
-    hintEl.textContent = result === 'bigger' ? '⬆️ Bigger' : '⬇️ Smaller';
-    hintEl.className = result === 'bigger' ? 'hint bigger' : 'hint smaller';
+    setHint(result === 'bigger' ? '⬆️ Bigger' : '⬇️ Smaller', result);
     card.classList.add('shake');
     setTimeout(() => card.classList.remove('shake'), 250);
     roomRef.update({ attempts, history });
@@ -681,15 +919,13 @@ function continueAfterRound(){
 function newGame(){
   if (roomRef) roomRef.off();
   if (chatRef) chatRef.off();
-  myCode = null;
-  mySlot = null;
-  roomRef = null;
-  chatRef = null;
-  lastData = null;
-  lastPhase = null;
-  chatOpen = false;
-  unreadCount = 0;
-  seenMessageKeys = new Set();
+  myCode = null; mySlot = null; roomRef = null; chatRef = null;
+  lastData = null; lastPhase = null;
+  chatOpen = false; unreadCount = 0; seenMessageKeys = new Set();
+  isBotGame = false; botSecret = null; botPlayerSecret = null;
+  botAttempts = 0; botHistory = []; botScores = { player: null, bot: null };
+  botRound = 1;
+  document.getElementById('roundresult-btn').onclick = continueAfterRound;
   document.getElementById('chat-messages').innerHTML = '';
   document.getElementById('chat-panel').classList.add('hidden');
   setError('');
